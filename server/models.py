@@ -1,30 +1,45 @@
-from pydantic import BaseModel, Field
-from typing import List, Literal
-
-# --- Sub-models defining the core data elements ---
+from pydantic import BaseModel
+from typing import List, Literal, Optional
 
 class RiskFactor(BaseModel):
-    """Defines the structure for a single health risk."""
-    label: str = Field(..., description="E.g., 'Alzheimer\'s Risk'")
-    risk_level: Literal["Low", "Mod", "High"] = Field(..., description="Severity level for the trait.")
-    gene: str = Field(..., description="Associated gene or marker (e.g., 'APOE4').")
+    label: str
+    risk_level: Literal["Low", "Mod", "High"]
+    gene: str
 
 class TraitStat(BaseModel):
-    """Defines a single quick stat card for the dashboard."""
-    category: str = Field(..., description="E.g., 'Metabolism', 'Recovery'")
-    value: str = Field(..., description="E.g., 'Fast', 'Elite'")
-    genotype: str = Field(..., description="E.g., 'AA', 'CC'")
+    category: str
+    value: str
+    genotype: str
 
-# --- Main Report Model (The entire API response structure) ---
+class HealthFlag(BaseModel):
+    source: str
+    variant: str
+    significance: str
+    link: str
+
+class FuturePerspective(BaseModel):
+    trait: str
+    score_id: str
+    raw_score: float
+    interpretation: str
+    citation: str
+
+# NEW: Model for raw file rows
+class GenomeRow(BaseModel):
+    rsid: str
+    chromosome: str
+    position: str
+    genotype: str
 
 class GeneticReport(BaseModel):
-    """The complete response structure for the MyBlueprint dashboard."""
-    vitality_score: int = Field(..., description="The calculated overall health score (0-100).")
-    score_label: Literal["Optimal", "Superior", "Average", "Attention"] = Field(..., description="Text description for the score.")
-    
-    # Widgets that correspond to the Bento Grid
-    risk_list: List[RiskFactor] = Field(..., description="List of top risk factors for the attention widget.")
-    trait_stats: List[TraitStat] = Field(..., description="List of quick-stat widgets.")
+    vitality_score: int
+    score_label: Literal["Optimal", "Superior", "Average", "Attention"]
+    risk_list: List[RiskFactor]
+    trait_stats: List[TraitStat]
+    source_filename: str
 
-    # A field to track the file that generated the report
-    source_filename: str = Field(..., description="Name of the file that was analyzed.")
+# NEW: Full Report including raw data
+class FullReport(BaseModel):
+    health_flags: List[HealthFlag]
+    future_perspectives: List[FuturePerspective]
+    genome_sample: List[GenomeRow] # <--- ADD THIS
