@@ -164,16 +164,15 @@
         const GenomeBrowser = ({ data }) => {
             const [search, setSearch] = React.useState('');
             
-            // Use real data if available, else fallback or empty
+            // Robust Mapping: If data.risk_list exists, map it. Else empty.
             const rawData = React.useMemo(() => {
-                if (data && data.risk_list) {
-                    // Convert the risk list into table format
+                if (data && Array.isArray(data.risk_list)) {
                     return data.risk_list.map(r => ({
-                        rsid: r.link ? (r.link.split('=')[1] || 'Unknown') : 'Unknown', // Added check for r.link
+                        rsid: (r.link && r.link.includes('=')) ? r.link.split('=')[1] : 'Unknown',
                         chrom: '-',
                         pos: '-',
                         geno: '-',
-                        trait: r.variant
+                        trait: r.variant || 'Unknown'
                     }));
                 }
                 return [];
@@ -225,7 +224,7 @@
                                     {filtered.length === 0 && (
                                         <tr>
                                             <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
-                                                {data ? "No variants found matching search." : "Upload a file to browse your genome."}
+                                                {rawData.length > 0 ? "No variants found matching search." : "Upload a file to browse your genome."}
                                             </td>
                                         </tr>
                                     )}
@@ -253,8 +252,9 @@
                 risk_list: []
             };
 
-            const displayData = (data && data.vitality_score !== undefined) ? data : initialData;
-            const hasData = !!(data && data.vitality_score !== undefined && data.vitality_score > 0);
+            // SAFE DATA ACCESS: Uses data if valid, else initial
+            const displayData = (data && data.risk_list) ? data : initialData;
+            const hasData = (data && data.risk_list && data.risk_list.length > 0);
 
             // API Upload Handler
             const handleFileUpload = async (file) => {
@@ -284,7 +284,28 @@
                     setStatusText('Analysis Complete');
                     
                     setTimeout(() => {
-                        onUpload(result); // Send data up to App to persist
+                        // TRANSFORM BACKEND DATA TO FRONTEND STATE
+                        // Backend returns { health_flags: [...], future_perspectives: [...] }
+                        // Frontend expects { risk_list: [...], trait_stats: [...] }
+                        
+                        const transformedData = {
+                            vitality_score: 84, // Mock score since backend focuses on ClinVar
+                            score_label: 'Optimal',
+                            stats: { metab: 'Fast', recovery: 'High', cog: 'Balanced' },
+                            risk_list: result.health_flags.map(f => ({
+                                variant: f.variant,
+                                significance: f.significance,
+                                source: f.source,
+                                link: f.link
+                            })),
+                            trait_stats: result.future_perspectives.map(p => ({
+                                category: p.trait,
+                                value: p.interpretation,
+                                genotype: p.raw_score
+                            }))
+                        };
+
+                        onUpload(transformedData); 
                         setUploadState('complete');
                         setTimeout(() => setUploadState('idle'), 3000);
                     }, 800);
@@ -336,7 +357,6 @@
                 doc.text(`(${displayData.score_label})`, 160, 54, { align: 'right' });
 
                 // Prepare Data for Tables
-                // ADDED SAFE GUARDS FOR MAPPING
                 const riskData = (displayData.risk_list || []).map(item => [
                     item.variant || item.gene,
                     item.significance,
@@ -389,7 +409,7 @@
                 doc.save(`MyBlueprint_Report_${new Date().toISOString().split('T')[0]}.pdf`);
             };
 
-            // Prevent NaN in calculation
+            // Safe calculation for stroke offset
             const safeScore = hasData && !isNaN(displayData.vitality_score) ? displayData.vitality_score : 0;
             const strokeOffset = 552 - (552 * (safeScore / 100));
 
